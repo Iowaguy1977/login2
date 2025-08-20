@@ -1,0 +1,108 @@
+﻿@page "/login"
+@using Microsoft.Data.SqlClient
+@inject IConfiguration Configuration
+
+<h3>Login</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p style="color:red">@errorMessage</p>
+}
+
+@if (!isLoggedIn)
+{
+    <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div>
+            <label>Username:</label>
+            <InputText @bind-Value="loginModel.Username" />
+            <ValidationMessage For="@(() => loginModel.Username)" />
+        </div>
+        <div>
+            <label>Password:</label>
+            <InputText @bind-Value="loginModel.Password" type="password" />
+            <ValidationMessage For="@(() => loginModel.Password)" />
+        </div>
+        <button type="submit">Login</button>
+    </EditForm>
+    <p>DEBUG: Username = '@loginModel.Username'</p>
+    <p>DEBUG: Password = '@loginModel.Password'</p>
+}
+else
+{
+    <p>Welcome, @loginModel.Username</p>
+}
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private bool isLoggedIn = false;
+    private string errorMessage = string.Empty;
+
+    private async Task HandleLogin()
+    {
+        var connStr = Configuration.GetConnectionString("DefaultConnection");
+
+        using (var conn = new SqlConnection(connStr))
+        {
+            await conn.OpenAsync();
+
+            var cmd = new SqlCommand(@"
+            SELECT COUNT(*) FROM Login
+            WHERE RTRIM(LTRIM(UserName)) COLLATE SQL_Latin1_General_CP1_CI_AS = @username
+              AND RTRIM(LTRIM(PassWord)) COLLATE SQL_Latin1_General_CP1_CI_AS = @password", conn);
+            cmd.Parameters.AddWithValue("@username", loginModel.Username.Trim());
+            cmd.Parameters.AddWithValue("@password", loginModel.Password.Trim());
+
+            var scalarResult = await cmd.ExecuteScalarAsync();
+            int result = Convert.ToInt32(scalarResult);
+			Console.WriteLine($"DEBUG: SQL Result = {result}");
+            if (result > 0)
+            {
+                isLoggedIn = true;
+                errorMessage = "";
+            }
+            else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+    }
+
+    public class LoginModel
+    {
+        
+        public string Username { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}
+
+@inject login2.SqlConnectionService SqlService
+
+@code {
+    private List<MyDataModel> data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cmd = SqlService.CreateCommand("SELECT ID, UserName,PassWord FROM Login");
+        using var reader = await cmd.ExecuteReaderAsync();
+        data = new List<MyDataModel>();
+        while (await reader.ReadAsync())
+        {
+            data.Add(new MyDataModel
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+				Password = reader.GetString(2)
+
+            });
+        }
+    }
+
+    class MyDataModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+		public string Password { get; set; }
+    }
+}
