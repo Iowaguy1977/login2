@@ -1,6 +1,10 @@
 ﻿@page "/login"
 @using Microsoft.Data.SqlClient
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
 @inject IConfiguration Configuration
+@inject login2.SqlConnectionService SqlService
+@inject ILogger<LoginModel> Logger
 
 <h3>Login</h3>
 
@@ -11,23 +15,22 @@
 
 @if (!isLoggedIn)
 {
-    <EditForm Model="loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-        <div>
-            <label>Username:</label>
-            <InputText @bind-Value="loginModel.Username" />
-            <ValidationMessage For="@(() => loginModel.Username)" />
+    <EditForm FormName="loginPage" Model=@loginModel OnSubmit="HandleLogin">
+        
+        <div class="form-group">
+            <label for="Username">Username:</label>
+            <InputText @bind-Value ="loginModel!.Username"  class="form-control" id="Username"></InputText>
+            
         </div>
         <div>
-            <label>Password:</label>
-            <InputText @bind-Value="loginModel.Password" type="password" />
-            <ValidationMessage For="@(() => loginModel.Password)" />
+            <label for="Password">Password:</label>
+            <InputText @bind-Value ="loginModel!.Password" class="form-control" id="Password"></InputText>
+            <ValidationMessage For =@(() => loginModel.Password) />
         </div>
         <button type="submit">Login</button>
     </EditForm>
-    <p>DEBUG: Username = '@loginModel.Username'</p>
-    <p>DEBUG: Password = '@loginModel.Password'</p>
+    <p>Debug: Username is @loginModel.Username</p>
+    <p>Debug: Password is @loginModel.Password</p>
 }
 else
 {
@@ -35,32 +38,43 @@ else
 }
 
 @code {
-    private LoginModel loginModel = new LoginModel();
+    [SupplyParameterFromForm]
+    private LoginModel loginModel { get; set; } =new();
     private bool isLoggedIn = false;
     private string errorMessage = string.Empty;
+
+    protected override void OnInitialized() => loginModel ??= new();
+    
+    private void Submit() => Logger.LogInformation("Username = {Username}", loginModel?.Username,"Password={Password}",loginModel?.Password);
+   
 
     private async Task HandleLogin()
     {
         var connStr = Configuration.GetConnectionString("DefaultConnection");
+        // Output to browser for debugging
+        errorMessage = $"[Debug] Username: {loginModel.Username}, Password: {loginModel.Password}";
+        StateHasChanged();
 
+        Console.WriteLine("Here is Username:" + loginModel.Username);
         using (var conn = new SqlConnection(connStr))
         {
             await conn.OpenAsync();
-
             var cmd = new SqlCommand(@"
-            SELECT COUNT(*) FROM Login
-            WHERE RTRIM(LTRIM(UserName)) COLLATE SQL_Latin1_General_CP1_CI_AS = @username
-              AND RTRIM(LTRIM(PassWord)) COLLATE SQL_Latin1_General_CP1_CI_AS = @password", conn);
-            cmd.Parameters.AddWithValue("@username", loginModel.Username.Trim());
-            cmd.Parameters.AddWithValue("@password", loginModel.Password.Trim());
+                SELECT COUNT(*) FROM Login
+                WHERE RTRIM(LTRIM(UserName)) COLLATE SQL_Latin1_General_CP1_CI_AS = @Username
+                  AND RTRIM(LTRIM(PassWord)) COLLATE SQL_Latin1_General_CP1_CI_AS = @Password", conn);
+
+            cmd.Parameters.AddWithValue("@Username", loginModel.Username);
+            cmd.Parameters.AddWithValue("@Password", loginModel.Password);
 
             var scalarResult = await cmd.ExecuteScalarAsync();
             int result = Convert.ToInt32(scalarResult);
-			Console.WriteLine($"DEBUG: SQL Result = {result}");
+
             if (result > 0)
             {
                 isLoggedIn = true;
                 errorMessage = "";
+                StateHasChanged(); // Force UI update after login
             }
             else
             {
@@ -71,20 +85,17 @@ else
 
     public class LoginModel
     {
-        
+        public int Id { get; set; }
         public string Username { get; set; } = "";
         public string Password { get; set; } = "";
+
+
     }
-}
-
-@inject login2.SqlConnectionService SqlService
-
-@code {
-    private List<MyDataModel> data;
+    private List<MyDataModel>? data;
 
     protected override async Task OnInitializedAsync()
     {
-        var cmd = SqlService.CreateCommand("SELECT ID, UserName,PassWord FROM Login");
+        var cmd = SqlService.CreateCommand("SELECT Id, UserName,PassWord FROM Login");
         using var reader = await cmd.ExecuteReaderAsync();
         data = new List<MyDataModel>();
         while (await reader.ReadAsync())
@@ -92,9 +103,8 @@ else
             data.Add(new MyDataModel
             {
                 Id = reader.GetInt32(0),
-                Name = reader.GetString(1),
-				Password = reader.GetString(2)
-
+                UserName = reader.GetString(1),
+                Password = reader.GetString(2)
             });
         }
     }
@@ -102,7 +112,9 @@ else
     class MyDataModel
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-		public string Password { get; set; }
+        [Required]
+        public string UserName { get; set; } = "";
+        [Required]
+        public string Password { get; set; } = "";
     }
 }
