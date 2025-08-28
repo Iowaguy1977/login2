@@ -1,4 +1,6 @@
 ﻿@page "/login"
+@layout login2.Components.Layout.LoginLayout
+
 @using Microsoft.Data.SqlClient
 @using Microsoft.AspNetCore.Components.Forms
 @using System.ComponentModel.DataAnnotations
@@ -29,8 +31,7 @@
         </div>
         <button type="submit">Login</button>
     </EditForm>
-    <p>Debug: Username is @loginModel.Username</p>
-    <p>Debug: Password is @loginModel.Password</p>
+    
 }
 else
 {
@@ -63,9 +64,9 @@ else
                 SELECT COUNT(*) FROM Login
                 WHERE RTRIM(LTRIM(UserName)) COLLATE SQL_Latin1_General_CP1_CI_AS = @Username
                   AND RTRIM(LTRIM(PassWord)) COLLATE SQL_Latin1_General_CP1_CI_AS = @Password", conn);
-
-            cmd.Parameters.AddWithValue("@Username", loginModel.Username);
-            cmd.Parameters.AddWithValue("@Password", loginModel.Password);
+			cmd.Parameters.AddWithValue("@Username", loginModel.Username.Trim());
+			cmd.Parameters.AddWithValue("@Password", loginModel.Password.Trim());
+           
 
             var scalarResult = await cmd.ExecuteScalarAsync();
             int result = Convert.ToInt32(scalarResult);
@@ -118,3 +119,8 @@ else
         public string Password { get; set; } = "";
     }
 }
+@inherits LayoutComponentBase
+
+<div class="login-layout">
+    @Body
+</div>
