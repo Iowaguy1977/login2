@@ -10,6 +10,8 @@
 
 <h3>Login</h3>
 
+<div class="LoginB">
+   
 @if (!string.IsNullOrEmpty(errorMessage))
 {
     <p style="color:red">@errorMessage</p>
@@ -59,6 +61,7 @@ else
         Console.WriteLine("Here is Username:" + loginModel.Username);
         using (var conn = new SqlConnection(connStr))
         {
+            try{
             await conn.OpenAsync();
             var cmd = new SqlCommand(@"
                 SELECT COUNT(*) FROM Login
@@ -81,6 +84,19 @@ else
             {
                 errorMessage = "Invalid username or password.";
             }
+                }
+                catch (SqlException sqlEx)
+                {
+                    // Handle database-specific errors here
+                    errorMessage = "Database error: " + sqlEx.Message;
+                    Logger.LogError(sqlEx, "SQL error during login");
+                }
+                catch (Exception ex)
+                {
+                    // Fallback for other exceptions
+                    errorMessage = "Unexpected error: " + ex.Message;
+                    Logger.LogError(ex, "Non-SQL error during login");
+                }
         }
     }
 
@@ -119,8 +135,4 @@ else
         public string Password { get; set; } = "";
     }
 }
-@inherits LayoutComponentBase
-
-<div class="login-layout">
-    @Body
 </div>
